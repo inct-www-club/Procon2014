@@ -1,4 +1,17 @@
 {-# LANGUAGE LambdaCase, TemplateHaskell, NoMonomorphismRestriction #-}
+{-
+
+$ cabal update
+$ cabal install free-game --force-reinstalls
+$ ghc -O2 main.hs
+$ ./main
+
+Usage:
+    Z: Undo swapping
+    Ctrl+Z: Undo stroke
+    R: Randomize
+    Del: Reset
+-}
 import FreeGame
 import qualified Data.Sequence as Seq
 import Control.Monad
@@ -142,26 +155,40 @@ shuffleIO xs = do
 
 command = do
     whenM (keyDown KeyDelete) $ board <~ use initialBoard
-    whenM (keyDown KeyZ) $ do
+    whenM (keyDown KeyR) $ do
         b <- use board
         xs <- embedIO $ shuffleIO (elems b)
         board .= listArray (bounds b) xs
-    whenM (keyDown KeyU) $ do
-        use stroke >>= \case
-            (_:_:_) -> return ()
-            _ -> use strokes >>= \case
-                (s:ss) -> do
-                    stroke .= s
-                    strokes .= ss
-                _ -> return ()
-        use stroke >>= \case
-            (s:t:ss) -> do
-                queue %= flip snoc (s, t)
-                stroke .= t : ss
-            _ -> return ()
+    whenM (keyDown KeyZ) $ do
+        b <- keyPress KeyLeftControl
+        if b
+            then use stroke >>= \case
+                [] -> use strokes >>= \case
+                    (s:ss) -> do
+                        queue .= Seq.fromList (zip s (tail s))
+                        strokes .= ss
+                    [] -> return ()
+                s -> queue .= Seq.fromList (zip s (tail s))
+            else do
+                use stroke >>= \case
+                    (_:_:_) -> return ()
+                    _ -> use strokes >>= \case
+                        (s:ss) -> do
+                            stroke .= s
+                            strokes .= ss
+                        _ -> return ()
+                use stroke >>= \case
+                    (s:t:ss) -> do
+                        queue %= flip snoc (s, t)
+                        stroke .= t : ss
+                    _ -> return ()
 
     delay command
 
+stat font = do
+    s <- uses stroke length
+    text font 32 $ "<" ++ show 
+    delay stat
 
 mainLoop :: s -> IterT (StateT s Frame) a -> IterT Frame a
 mainLoop s m = lift (runStateT (runIterT m) s) >>= \case
@@ -178,4 +205,4 @@ main = runGame Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     mainLoop (initialWorld (w`div`4) (h`div`4) 4 4 bmp)
         $ translate (V2 64 64)
         $ scale (min (1024/fromIntegral w) (768/fromIntegral h))
-        $ interleave_ [gameControl, gameView, nav, guide, command]
+        $ interleave_ [gameControl, gameView, nav, guide, command, stat font]
