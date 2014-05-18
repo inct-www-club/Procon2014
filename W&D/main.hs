@@ -187,8 +187,8 @@ command = do
 
 stat font = do
     s <- uses stroke length
-    text font 32 $ "<" ++ show 
-    delay stat
+    translate (V2 400 100) $ color black $ text font 32 $ "<" ++ show s ++ ">"
+    delay (stat font)
 
 mainLoop :: s -> IterT (StateT s Frame) a -> IterT Frame a
 mainLoop s m = lift (runStateT (runIterT m) s) >>= \case
