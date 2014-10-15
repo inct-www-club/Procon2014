@@ -5,7 +5,9 @@ import qualified Data.Set as Set
 import Linear
 import Codec.Picture
 import System.Random
-
+import Data.Array
+import Control.Lens
+import qualified Data.Vector as V
 type RealPiece = Piece [Piece (V2 Int)]
 
 fromImage :: Image PixelRGB8 -> Int -> Int -> [RealPiece]
@@ -22,16 +24,14 @@ fromImage img c r = [Piece 1
   | c <- [0..c-1], r <- [0..r-1]] where
   w = imageWidth img `div` c
   h = imageHeight img `div` r
-
+{-
 squash :: [PixelRGB8] -> Chara
 squash ps = V4 (gen 0.1 0 xs) (gen 0.1 0 ys) (gen 0.1 0 zs) (gen 0.2 0 $ zipWith (+) xs ys) where
   (xs, ys, zs) = foldr 
     (\(PixelRGB8 r g b) (rs, gs, bs) -> (fromIntegral r : rs, fromIntegral g : gs, fromIntegral b : bs))
     ([], [], [])
     ps
-
-shrink :: IM.IntMap (Piece a) -> IM.IntMap (Piece a)
-shrink n m = id
+-}
 
 combine (Piece m p q x a) (Piece n r s y b) = Piece (m + n) p s (distanceC q r) (a ++ b)
 
@@ -48,10 +48,15 @@ gen f p (x:xs) = cis p * (x :+ 0) + gen f (p + f) xs
 
 data Piece a = Piece
     Int
-    Chara -- top
-    Chara -- bottom
+    V.Vector (Complex Double)
+    V.Vector (Complex Double)
     { divergence :: Double } -- Local divergence
     a
+
+rearrange :: Int -> [Piece a] -> (Array (V2 Int) [Piece a], Array (V2 Int) [Piece a])
+rearrange = flip execStateT (listArray (V2 0 0, V2 (granularity-1) 3) $ repeat []
+    , listArray (V2 0 0, V2 (granularity-1) 3) $ repeat []) where
+  granularity = 10
 
 -- 0.
 -- 1. calculate the characteristics for every edge
