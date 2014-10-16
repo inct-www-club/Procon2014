@@ -1,44 +1,49 @@
-data Way = U | R | D | L deriving(Eq)
--- TODO : ~Opをモジュール化する
+data Way = U | R | D | L deriving(Eq, Show)
 data Op = Op { opPiece :: Int
              , opCost :: Int
-             , opWay :: [Way] }
+             , opWay :: [Way] } deriving(Eq, Show)
 type Field = [Int]
 
-swap_cost = 1
-choice_cost = 10
-fieldWidht = 20
-fieldHeight = 20
+swapCost = 1
+choiceCost = 10
+fieldWidth = 5
+fieldHeight = 5
 
-solver :: Field -> Field -> Int -> Way -> [Op]
+solver :: Field -> Field -> Int -> Way -> Maybe [Op]
 solver goalField field piece way
-  | goalField == field'  = [newOp] -- Goal!
-  | opPiece(op) == piece = (Op piece (opCost(op) + swap_cost) way:opWay(op)):ops
-  | otherwise            = newOp:ops
-  where field' = swap field piece way
-        choice' = goalField field'
-        piece' = swapPiece piece way
-        best = bestOp $ choice': $ map (solver goalField field' piece') [U,R,D,L]
-        op:ops = best
-        newOp = Op piece (choice_cost + swap_cost) [way]
+  | goalField == field = Just [(Op (-1) 0 [])] -- 終端
+  | piece' == Nothing = Nothing
+  | best == Nothing = Nothing
+  | opPiece(op) == pieceVal = Just ( (Op piece (opCost(op) + swapCost) (way:opWay(op))) : opx )
+  | otherwise = Just ( (Op piece choiceCost [way]) : (op : opx))
+  where
+    (Just (op:opx)) = best
+    best = choice goalField field'
+    field' = swapByIndex piece pieceVal field
+    piece' = afterIndex piece way
+    (Just pieceVal) = piece'
 
-choice :: Field -> Field -> [Op]
-choice goalField field = bestOp $ zipWith (solver goalField field) [0..length(field)-1] [U,R,D,L]
+choice :: Field -> Field -> Maybe [Op]
+choice goalField field = bestOp $ zipWith (solver goalField field) [0..(length(field) - 1)] [U, R, D, L]
 
-bestOp :: [[Op]] -> [Op]
+bestOp :: [Maybe [Op]] -> Maybe [Op]
 bestOp [] = error "empty list"
 bestOp [x] = x
-bestOp (x:xs) = minOp x $ bestOp xs
+bestOp (x:xs) = rase minOp x (bestOp xs)
 
 minOp :: [Op] -> [Op] -> [Op]
-minOp [] xs = xs
-minOp xs [] = xs
 minOp xs ys
-  | xsCost <= ysCost = x
-  | otherwise        = y
-  where totalCost = sum $ map opCost
-        xsCost = totalCost xs
-        ysCost = totalCost ys
+  | xsCost <= ysCost = xs
+  | otherwise        = ys
+  where xsCost = sum $ map opCost xs
+        ysCost = sum $ map opCost ys
+
+rase :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
+rase f (Just a) (Just b) = Just (f a b)
+rase _ (Just a) Nothing  = Just a
+rase _ Nothing (Just b)  = Just b
+rase _ Nothing Nothing   = Nothing
+
 
 swap :: Int -> Way -> Field -> Maybe Field
 swap piece way field = case (afterIndex piece way) of
