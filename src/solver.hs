@@ -1,4 +1,4 @@
-data Way = U | R | D | L
+data Way = U | R | D | L deriving(Eq)
 -- TODO : ~Opをモジュール化する
 data Op = Op { opPiece :: Int
              , opCost :: Int
@@ -7,6 +7,8 @@ type Field = [Int]
 
 swap_cost = 1
 choice_cost = 10
+fieldWidht = 20
+fieldHeight = 20
 
 solver :: Field -> Field -> Int -> Way -> [Op]
 solver goalField field piece way
@@ -37,3 +39,34 @@ minOp xs ys
   where totalCost = sum $ map opCost
         xsCost = totalCost xs
         ysCost = totalCost ys
+
+swap :: Int -> Way -> Field -> Maybe Field
+swap piece way field = case (afterIndex piece way) of
+  (Just piece') -> Just $ swapByIndex piece piece' field
+  (Nothing) -> Nothing
+
+afterIndex :: Int -> Way -> Maybe Int
+afterIndex index way
+  | way == U = if afterU >= 0
+                  then Just afterU
+                  else Nothing
+  | way == R = if (mod index fieldWidth) + 1 < fieldWidth
+                  then Just $ index + 1
+                  else Nothing
+  | way == D = if afterD < fieldLength
+                  then Just afterD
+                  else Nothing
+  | way == L = if (mod index fieldWidth) - 1 >= 0
+                  then Just $ index - 1
+                  else Nothing
+  where fieldLength = fieldWidth * fieldHeight
+        afterU = index - fieldWidth
+        afterD = index + fieldWidth
+
+swapByIndex :: Int -> Int -> Field -> Field
+swapByIndex i j xs = reverse $ fst $ foldl f ([],0) xs
+    where
+      f (acc, idx) x
+        | idx == i  = (xs!!j:acc, idx+1)
+        | idx == j  = (xs!!i:acc, idx+1)
+        | otherwise = (x:acc, idx+1)
