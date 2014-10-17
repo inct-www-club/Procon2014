@@ -6,32 +6,41 @@ type Field = [Int]
 
 swapCost = 1
 choiceCost = 10
-fieldWidth = 5
-fieldHeight = 5
+fieldWidth = 4
+fieldHeight = 4
+maxChoice = 3
 magicNum = 0
 
 goal = [0..24] :: [Int]
 fie = 1:2:0:[3..24] :: [Int]
 
-solver :: Field -> Field -> Int -> Way -> Maybe [Op]
-solver goalField field piece way
+solver :: Field -> Field -> Int -> Int -> Way -> Maybe [Op]
+solver goalField field count piece way
   | goalField == field = Just [(Op (-1) 0 [])] -- 終端
+  | count > 5 = Nothing
   | piece' == Nothing = Nothing
   | (jw' - jw) < magicNum = Nothing
   | best == Nothing = Nothing
+  | (length opx) + 1 > maxChoice = Nothing
   | opPiece(op) == pieceVal = Just ( (Op piece (opCost(op) + swapCost) (way:opWay(op))) : opx )
   | otherwise = Just ( (Op piece (choiceCost + swapCost) [way]) : (op : opx))
   where
     (Just (op:opx)) = best
-    best = bestOp $ (choice goalField field') : (map (solver goalField field' pieceVal) [U, R, D, L])
+    best = bestOp $ (choice goalField field' (count + 1)) : (map (solver goalField field' (count + 1) pieceVal) (genWay way))
     field' = swapByIndex piece pieceVal field
     piece' = afterIndex piece way
     (Just pieceVal) = piece'
     jw = jwDist goalField field
     jw' = jwDist goalField field'
 
-choice :: Field -> Field -> Maybe [Op]
-choice goalField field = bestOp $ mapNeo (map (solver goalField field) [0..(length(field) - 1)])
+choice :: Field -> Field -> Int -> Maybe [Op]
+choice goalField field count = bestOp $ mapNeo (map (solver goalField field count) (wrongList goalField field 0))
+
+genWay :: Way -> [Way]
+genWay U = [U,R,L]
+genWay R = [U,R,D]
+genWay D = [R,D,L]
+genWay L = [U,D,L]
 
 {-
 tapleList :: a -> [b] -> [(a,b)] -> [(a,b)]
@@ -44,9 +53,14 @@ mapNeo [] = []
 mapNeo (f:fs) = (f U) : (f R) : (f D) : (f L) : (mapNeo fs)
 
 bestOp :: [Maybe [Op]] -> Maybe [Op]
-bestOp [] = error "empty list"
+bestOp [] = Nothing
 bestOp [x] = x
-bestOp (x:xs) = rase minOp x (bestOp xs)
+bestOp (x:xs)
+  | x == Nothing = bestOp xs
+  | (opCostTotal op) == 0 = x
+  | otherwise = rase minOp x (bestOp xs)
+  where
+    (Just op) = x
 
 minOp :: [Op] -> [Op] -> [Op]
 minOp xs ys
@@ -54,6 +68,9 @@ minOp xs ys
   | otherwise       = ys
   where xsCost = sum $ map opCost xs
         ysCost = sum $ map opCost ys
+
+opCostTotal :: [Op] -> Int
+opCostTotal ops = sum $ map opCost ops
 
 rase :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
 rase f (Just a) (Just b) = Just (f a b)
@@ -92,6 +109,13 @@ swapByIndex i j xs = reverse $ fst $ foldl f ([],0) xs
         | idx == i  = (xs!!j:acc, idx+1)
         | idx == j  = (xs!!i:acc, idx+1)
         | otherwise = (x:acc, idx+1)
+
+wrongList :: (Eq a) => [a] -> [a] -> Int -> [Int]
+wrongList [] _ _ = []
+wrongList _ [] _ = []
+wrongList (x:xs) (y:ys) count
+  | x == y = wrongList xs ys (count + 1)
+  | otherwise = count : (wrongList xs ys (count + 1))
 
 tJW :: (Eq a) => [a] -> [a] -> Float
 tJW [] _ = 0
