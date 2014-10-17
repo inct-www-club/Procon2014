@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, MultiWayIf #-}
+{-# LANGUAGE ViewPatterns, MultiWayIf, TemplateHaskell #-}
 module Match where
 import Codec.Picture
 import Control.Applicative
@@ -11,6 +11,7 @@ import Data.Function (on)
 import Data.List (sort, sortBy, transpose)
 import Data.String
 import Debug.Trace
+import Data.Tuple
 import Foreign.Ptr
 import Foreign.Storable
 import Graphics.Netpbm
@@ -74,7 +75,7 @@ emptySpace :: Int -> Space a
 emptySpace n = Space (V2 n n) (listArray (-V2 n n, V2 n n) $ repeat [])
 
 find :: Complex Double -> Space (Piece a) -> [Entry Double (Piece a)]
-find z s@(Space siz ar) = sort $ map (\(d, a) -> Entry (quadranceC $ z - d) a) $ concat
+find z s@(Space siz ar) = map (\(d, a) -> Entry (quadranceC $ z - d) a) $ concat
   $ concat [ar ^.. ix i
   , ar ^.. ix (i + V2 0 1)
   , ar ^.. ix (i + V2 1 0)
@@ -103,16 +104,16 @@ fromImage img c0 r0 = [Piece
     h = imageHeight img `div` r0  
     w = imageWidth img `div` c0
 
-genPairs :: ProblemInfo -> Adj -> (V.Vector (Complex Double) -> Complex Double) -> [Entry Double (RealPiece, RealPiece)]
-genPairs prob mode key = sort $ do
+genPairs :: ProblemInfo -> Adj -> (V.Vector (Complex Double) -> Complex Double) -> Map.Map Int (Entry Double (RealPiece, RealPiece))
+genPairs prob mode key = Map.fromList $ zip [0..] $ do
   p <- ps
-  Entry d p' <- take 2 $ nearest pieceExtract p $ flip find space $ g p
+  Entry d p' <- flip find space $ g p
   return $ Entry d (p, p')
   where
     (f, g) = case mode of { Vertical -> (key . pieceTop, key . pieceBottom)
       ; Horizontal -> (key . pieceLeft, key . pieceRight) }
     ps = fromImage (theImage prob) (columns prob) (rows prob)
-    space = insertMany f ps (emptySpace 8)
+    space = insertMany f ps (emptySpace 16)
 
 loadProblem :: FilePath -> IO ProblemInfo
 loadProblem path = do
@@ -133,23 +134,39 @@ realIndex = pieceExtract
 toSpaceIndex :: Complex Double -> V2 Int -> V2 Int
 toSpaceIndex (x :+ y) siz = fmap truncate $ V2 x y * fmap fromIntegral siz where
 
-generate :: ProblemInfo -> [Map.Map (V2 Int) (Entry Double (V2 Int))]
-generate prob = do
-  h <- entire
-  r <- tryFill (Set.delete h $ Set.fromList entire, Map.fromList [(V2 0 0, Entry 0 h)]) (tail entire)
-  return r
+data Env = Env
+  { adjacencies :: [(V2 Int, Map.Map (V2 Int) [Entry Double (V2 Int)])]  }
+
+mkEnv :: ProblemInfo -> Env
+mkEnv prob = Env $ do
+  h <- harmonics
+  let hs = hm Horizontal h
+      vs = hm Vertical h
+  [(V2 1 0, aggr swap hs)
+    ,(-V2 1 0, aggr id hs)
+    ,(V2 0 1, aggr swap vs)
+    ,(-V2 0 1, aggr id vs)
+    ]
   where
-    hs = genPairs prob Horizontal (sum . mapM (flip V.unsafeIndex) [0,1,2,3,4,5])
-    vs = genPairs prob Vertical (sum . mapM (flip V.unsafeIndex) [0,1,2,3,4,5])
-    mDown = Map.fromListWith (++) [(realIndex p, [Entry d $ realIndex q]) | Entry d (p, q) <- vs]
-    mRight = Map.fromListWith (++) [(realIndex p, [Entry d $ realIndex q]) | Entry d (p, q) <- hs]
-    entire = V2 <$> [0..columns prob - 1] <*> [0..rows prob - 1]
-    tryFill (_, m) [] = return m
-    tryFill (available, m) (i:is) = do
-      let rs = [e | Entry _ r <- m ^.. ix (i - V2 1 0), e@(Entry _ k) <- concat (mRight ^.. ix r), Set.member k available]
-      let ds = [e | Entry _ r <- m ^.. ix (i - V2 0 1), e@(Entry _ k) <- concat (mDown ^.. ix r), Set.member k available]
-      case rs ++ ds of
-        [] -> []
-        xs -> do
-          c@(Entry _ k) <- take 5 $ sort xs
-          tryFill (Set.delete k available, Map.insert i c m) is
+    harmonics = [[0,1,2],[3,4,5],[6,7,8]]
+    hm m ks = genPairs prob m $ sum . mapM (flip V.unsafeIndex) ks
+    aggr f xs = Map.fromListWith (++) [(realIndex p, [Entry d $ realIndex q]) | (i, Entry d (f -> (p, q))) <- Map.toList xs]
+
+type Arrangement = Map.Map (V2 Int) [Entry Double (V2 Int)]
+
+expand :: Env -> Arrangement -> V2 Int -> [Entry Double (V2 Int)]
+expand (Env hs) m i = do
+  let f (t, s) = [(j, d) | Entry _ v <- m ^.. ix (i + t) . element 0, Entry d j <- s ^.. ix v . traverse]
+  sort $ map (\(j, d) -> Entry d j) $ Map.toList $ Map.fromListWith (*/) $ concatMap f hs
+
+  where
+    a */ b = a * b / (a + b)
+
+data World = World
+  { _board :: Arrangement
+  , _position :: V2 Int
+  , _focus :: V2 Int
+  , _clicking :: Bool
+  , _shift :: Bool }
+
+makeLenses ''World
