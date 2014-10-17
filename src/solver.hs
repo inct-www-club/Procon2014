@@ -10,6 +10,9 @@ fieldWidth = 5
 fieldHeight = 5
 magicNum = 0
 
+goal = [0..24] :: [Int]
+fie = 1:2:0:[3..24] :: [Int]
+
 solver :: Field -> Field -> Int -> Way -> Maybe [Op]
 solver goalField field piece way
   | goalField == field = Just [(Op (-1) 0 [])] -- 終端
@@ -17,10 +20,10 @@ solver goalField field piece way
   | (jw' - jw) < magicNum = Nothing
   | best == Nothing = Nothing
   | opPiece(op) == pieceVal = Just ( (Op piece (opCost(op) + swapCost) (way:opWay(op))) : opx )
-  | otherwise = Just ( (Op piece choiceCost [way]) : (op : opx))
+  | otherwise = Just ( (Op piece (choiceCost + swapCost) [way]) : (op : opx))
   where
     (Just (op:opx)) = best
-    best = choice goalField field'
+    best = bestOp $ (choice goalField field') : (map (solver goalField field' pieceVal) [U, R, D, L])
     field' = swapByIndex piece pieceVal field
     piece' = afterIndex piece way
     (Just pieceVal) = piece'
@@ -47,8 +50,8 @@ bestOp (x:xs) = rase minOp x (bestOp xs)
 
 minOp :: [Op] -> [Op] -> [Op]
 minOp xs ys
-  | xsCost <= ysCost = xs
-  | otherwise        = ys
+  | xsCost < ysCost = xs
+  | otherwise       = ys
   where xsCost = sum $ map opCost xs
         ysCost = sum $ map opCost ys
 
