@@ -8,11 +8,13 @@ swapCost = 1
 choiceCost = 10
 fieldWidth = 5
 fieldHeight = 5
+magicNum = 0
 
 solver :: Field -> Field -> Int -> Way -> Maybe [Op]
 solver goalField field piece way
   | goalField == field = Just [(Op (-1) 0 [])] -- 終端
   | piece' == Nothing = Nothing
+  | (jw' - jw) < magicNum = Nothing
   | best == Nothing = Nothing
   | opPiece(op) == pieceVal = Just ( (Op piece (opCost(op) + swapCost) (way:opWay(op))) : opx )
   | otherwise = Just ( (Op piece choiceCost [way]) : (op : opx))
@@ -22,9 +24,21 @@ solver goalField field piece way
     field' = swapByIndex piece pieceVal field
     piece' = afterIndex piece way
     (Just pieceVal) = piece'
+    jw = jwDist goalField field
+    jw' = jwDist goalField field'
 
 choice :: Field -> Field -> Maybe [Op]
-choice goalField field = bestOp $ zipWith (solver goalField field) [0..(length(field) - 1)] [U, R, D, L]
+choice goalField field = bestOp $ mapNeo (map (solver goalField field) [0..(length(field) - 1)])
+
+{-
+tapleList :: a -> [b] -> [(a,b)] -> [(a,b)]
+tapleList _ [] list = list
+tapleList y x:xs list = (y,x) : tapleList y xs list
+-}
+
+mapNeo :: [(Way -> Maybe [Op])] -> [Maybe [Op]]
+mapNeo [] = []
+mapNeo (f:fs) = (f U) : (f R) : (f D) : (f L) : (mapNeo fs)
 
 bestOp :: [Maybe [Op]] -> Maybe [Op]
 bestOp [] = error "empty list"
@@ -75,3 +89,16 @@ swapByIndex i j xs = reverse $ fst $ foldl f ([],0) xs
         | idx == i  = (xs!!j:acc, idx+1)
         | idx == j  = (xs!!i:acc, idx+1)
         | otherwise = (x:acc, idx+1)
+
+tJW :: (Eq a) => [a] -> [a] -> Float
+tJW [] _ = 0
+tJW _ [] = 0
+tJW (x:xs) (y:ys)
+  | x == y = tJW xs ys
+  | otherwise = (tJW xs ys) + 1
+
+jwDist :: (Eq a) => [a] -> [a] -> Float
+jwDist x y = (2 + (m - t) / m ) / 3
+  where
+    m = fromIntegral( length(x) ) :: Float
+    t = (tJW x y) / 2
