@@ -113,7 +113,7 @@ genPairs prob mode key = Map.fromList $ zip [0..] $ do
     (f, g) = case mode of { Vertical -> (key . pieceTop, key . pieceBottom)
       ; Horizontal -> (key . pieceLeft, key . pieceRight) }
     ps = fromImage (theImage prob) (columns prob) (rows prob)
-    space = insertMany f ps (emptySpace 16)
+    space = insertMany f ps (emptySpace 12)
 
 loadProblem :: FilePath -> IO ProblemInfo
 loadProblem path = do
@@ -148,7 +148,7 @@ mkEnv prob = Env $ do
     ,(-V2 0 1, aggr id vs)
     ]
   where
-    harmonics = [[0,1,2],[3,4,5],[6,7,8]]
+    harmonics = [[0,1,2],[3],[4],[5],[6,7,8]]
     hm m ks = genPairs prob m $ sum . mapM (flip V.unsafeIndex) ks
     aggr f xs = Map.fromListWith (++) [(realIndex p, [Entry d $ realIndex q]) | (i, Entry d (f -> (p, q))) <- Map.toList xs]
 
@@ -158,7 +158,6 @@ expand :: Env -> Arrangement -> V2 Int -> [Entry Double (V2 Int)]
 expand (Env hs) m i = do
   let f (t, s) = [(j, d) | Entry _ v <- m ^.. ix (i + t) . element 0, Entry d j <- s ^.. ix v . traverse]
   sort $ map (\(j, d) -> Entry d j) $ Map.toList $ Map.fromListWith (*/) $ concatMap f hs
-
   where
     a */ b = a * b / (a + b)
 
