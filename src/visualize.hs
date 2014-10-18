@@ -55,7 +55,9 @@ printAns ident ans = do
   putStrLn "******************"
   let str = answerStr ans
   putStrLn str
-  sendContent ident str
+  case ident of
+    Just s -> sendContent s str
+    Nothing -> return ()
 
 answerStr ans = show (length ans) ++ "\r\n"
   ++ intercalate "\r\n" (concat [[showHex x "" ++ showHex y ""
@@ -68,7 +70,7 @@ answerStr ans = show (length ans) ++ "\r\n"
 (.>-.) obj o = Object $ fmap (\((a, obj'), o') -> (a, obj' .>-. o')) . runObject o . liftU . runObject obj
   ||> fmap (\(a, o') -> (a, obj .>-. o')) . runObject o
 
-handler :: String -> M.ProblemInfo -> V2 Double -> M.Env -> Object (Keyboard |> State M.World |> Mouse |> Nil) (System s)
+handler :: Maybe String -> M.ProblemInfo -> V2 Double -> M.Env -> Object (Keyboard |> State M.World |> Mouse |> Nil) (System s)
 handler ident prob size env = liftO handle' .>-. sharing handle initialWorld where
   handle' = acceptM $ \case
     Down KeyW -> M.position -= V2 0 1
@@ -131,14 +133,7 @@ tryFetch url = do
 
 serverUrl = "http://172.16.1.2"
 
-main = withSocketsDo $ runSystem Windowed (BB.Box (V2 0 0) (V2 800 600)) $ do
-  (ident:_) <- liftIO getArgs
-  let name = "prob" ++ ident ++ ".ppm"
-  let url = serverUrl ++ "/problem/" ++ name
-  liftIO $ putStrLn url
-  liftIO $ tryFetch url >>= B.writeFile name
-
-  prob <- liftIO $ M.loadProblem name
+runInteractive ident prob = runSystem Windowed (BB.Box (V2 0 0) (V2 800 600)) $ do
   let env = M.mkEnv prob
   bmp <- liftImage' (promoteImage $ M.theImage prob)
   let w = imageWidth (M.theImage prob) `div` M.columns prob
@@ -156,3 +151,16 @@ main = withSocketsDo $ runSystem Windowed (BB.Box (V2 0 0) (V2 800 600)) $ do
         Nothing -> return ()
   linkGraphic hist
   stand
+
+main = withSocketsDo $ getArgs >>= \case
+  ("remote":ident:_) -> do
+    let name = "prob" ++ ident ++ ".ppm"
+    let url = serverUrl ++ "/problem/" ++ name
+    putStrLn url
+    tryFetch url >>= B.writeFile name
+    prob <- M.loadProblem name
+    runInteractive (Just ident) prob
+  (path:_) -> do
+    prob <- M.loadProblem path
+    runInteractive Nothing prob
+  
