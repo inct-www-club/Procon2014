@@ -148,7 +148,7 @@ mkEnv prob = Env $ do
     ,(-V2 0 1, aggr id vs)
     ]
   where
-    harmonics = [[0,1,2],[3],[4],[5],[6,7,8]]
+    harmonics = [[0,1,2],[3,4],[4,5],[5,3]]
     hm m ks = genPairs prob m $ sum . mapM (flip V.unsafeIndex) ks
     aggr f xs = Map.fromListWith (++) [(realIndex p, [Entry d $ realIndex q]) | (i, Entry d (f -> (p, q))) <- Map.toList xs]
 

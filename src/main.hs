@@ -1,27 +1,32 @@
+{-# LANGUAGE LambdaCase, ViewPatterns #-}
 import Solve as S
-import qualified Data.Map as Map
+import qualified Match as M
+import qualified Data.Map.Strict as Map
 import Control.Applicative
 import Linear
 import Control.Monad
-simpleProblem :: S.Problem
-simpleProblem = S.Problem
-  { choiceCost = 3
-  , swapCost = 1
-  , rounds = 3
-  , columns = 3
-  , rows = 3
-  , evaluate = fromIntegral . length . filter id . f
-  , isComplete = and . f }
-  where
-    f = zipWith (==) simpleIndices . Map.elems
+import Data.Array
+import System.Environment
 
-simpleIndices = V2 <$> [0..2] <*> [0..2]
+simpleProblem :: Int -> Int -> S.Problem
+simpleProblem c r = S.Problem
+  { choiceCost = 5
+  , swapCost = 2
+  , rounds = 4
+  , columns = c
+  , rows = r
+  , evaluate = \field -> fromIntegral $ sum $ map (uncurry S.dist) (fAssocs field)
+  , isComplete = \field -> (0==) $ fromIntegral $ sum $ map (uncurry S.dist) (fAssocs field) }
 
-runSolver :: [Int] -> IO ()
-runSolver ps = do
-  let f0 = zip simpleIndices [V2 d m | p <- ps, let (d, m) = divMod p 3]
+simpleIndices c r = flip V2 <$> [0..r - 1] <*> [0..c - 1]
+
+runSolver :: Int -> Int -> [Int] -> IO ()
+runSolver c r ps = do
+  let f0 = zip (simpleIndices c r) [V2 d m | p <- ps, let (m, d) = divMod p c]
   print f0
-  r <- solve simpleProblem $ Map.fromList f0
-  print r
+  r <- solve (simpleProblem c r) $ fBuild c r f0
+  putStrLn ""
+  forM_ (reverse r) $ \(Op cost t0 _ os) -> print (t0, reverse os)
 
-main = forever $ readLn >>= runSolver
+main = getArgs >>= \case
+  ((read -> c) : (read -> r) : _) -> readLn >>= runSolver c r
