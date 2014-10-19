@@ -69,16 +69,15 @@ choice prob v (H.Entry _ (ops, f)) = [evalE prob (Op (choiceCost prob) v v [] : 
 
 solve prob f0 = go 0 $ H.singleton (evalE prob [] f0) where
   go n hs0 = do
-    let hs
-          | n `mod` 16 == 0 = take 1000 $ toList hs0
-          | otherwise = take 500 $ toList hs0
-    case hs of
-      (H.Entry p _:_) -> do
-        putStrLn $ show p
-        hFlush stdout
-      [] -> fail "Unsolvable"
-    case filter (isComplete prob . snd . H.payload) hs of
-      [] -> do
-        hs' <- mapM (generate prob) hs
-        go (n + 1) (foldl H.union H.empty hs')
-      (H.Entry _ (r, _):_) -> return r
+        rnd <- randomRIO (900, 3600)
+        let hs = take rnd $ toList hs0
+        case hs of
+          (H.Entry p _:_) -> do
+            putStrLn $ show p
+            hFlush stdout
+          [] -> fail "Unsolvable"
+        case filter (isComplete prob . snd . H.payload) hs of
+          [] -> do
+            hs' <- mapM (generate prob) hs
+            go (n + 1) (foldl H.union H.empty hs')
+          (H.Entry _ (r, _):_) -> return r

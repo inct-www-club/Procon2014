@@ -85,8 +85,8 @@ handler ident prob size env = liftO handle' .>-. sharing handle initialWorld whe
       let inner (M.Entry _ x:_) = x
       let costS = fromIntegral $ M.selectCost prob + M.swapCost prob
       let prob' = S.Problem
-            { choiceCost = fromIntegral (M.selectCost prob) * 8 / costS
-            , swapCost = fromIntegral (M.swapCost prob) * 8 / costS
+            { choiceCost = fromIntegral (M.selectCost prob) * 4 / costS
+            , swapCost = fromIntegral (M.swapCost prob) * 4 / costS
             , rounds = M.rounds prob
             , columns = M.columns prob
             , rows = M.rows prob
@@ -133,7 +133,7 @@ tryFetch url = do
 
 serverUrl = "http://172.16.1.2"
 
-runInteractive ident prob = runSystem Windowed (BB.Box (V2 0 0) (V2 800 600)) $ do
+runInteractive ident prob = runSystem Windowed (BB.Box (V2 0 0) (V2 1200 900)) $ do
   let env = M.mkEnv prob
   bmp <- liftImage' (promoteImage $ M.theImage prob)
   let w = imageWidth (M.theImage prob) `div` M.columns prob
